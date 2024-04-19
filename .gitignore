@@ -1,0 +1,15 @@
+*.png
+*.jpg
+*.json
+*.np
+*.npy
+*.npz
+*.dcm
+data/
+*.dcm
+*.csv
+experiments/
+*.pt
+*.pyc
+*.xls
+*.xlsx

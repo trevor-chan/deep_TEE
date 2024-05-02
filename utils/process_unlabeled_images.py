@@ -6,66 +6,121 @@ import os
 import random
 import numpy as np
 from PIL import Image
-from lib.dicom_utilities import read_dicom, get_dicom_image_data, save_fig
-from lib.subject_utilities import load_excel, aggregate_data
+from dicom_utilities import read_dicom, get_dicom_image_data
+from pydicom.pixel_data_handlers import convert_color_space
 from natsort import natsorted
+import tqdm
+import time
+import cv2
+
+import multiprocessing
 
 
 # parameters
 home_path = os.path.expanduser('~/')
-data_path = f'../data/first_transfer/8'
-data_directories = {'train_path':f'../data/multiview/train','val_path':f'../data/multiview/val','test_path':f'../data/multiview/test'}
+data_path = f'/data/deep_tee/first_transfer'
+data_directories = {'train_path':f'../data/semi-processed/unsupervised_2/train', 'val_path':f'../data/semi-processed/unsupervised_2/val', 'test_path':f'../data/semi-processed/unsupervised_2/test'}
 random.seed(42)
 sample_subset = False
-num_frames = 50 # unclear what the best frame selection is - some clips longer than others
 final_w = 200
 
-test_subjects = []
+test_subjects = [
+ 36403379, 33599236, 32178506, 32558415, 46436738, 33032890, 34505770, 46499198, 42976687, 32335549, 
+ 31559026, 36961375, 33470091, 44770169, 41161720, 42110628, 48911299, 38126223, 35118548, 47121878,
+ 47004348, 35061597, 33007768, 40464634, 40119285, 32410224, 34712545, 43042815, 43562120, 31402077,
+ 32810193, 52457032, 34563207, 35690137, 34272527, 31310610, 43543230, 38521823, 34242366, 35017968,
+ 35855551, 41430509, 48635081, 47905065, 35391002, 32255792, 34691554, 32946555, 44024741, 39688899,
+ 41138963, 53121235, 32960623, 35467670, 45263396, 45150549, 36707709, 34725003, 36338716, 34449047,
+ 33537417, 44520805, 35588046, 48170504, 49516659, 44709908, 35067204, 34192945, 35741807, 32106269,
+ 48697642, 34246950, 34719884, 33053824, 35379418, 33258488, 53010008, 39855670, 33419586, 32340825,
+ 35447048, 36409050, 52784810, 43568383, 52100909, 34727625, 35160878, 34733072, 33485045, 35403074,
+ 46586195, 52670108, 51794550, 44505291, 50134074, 52118901, 34500275, 38816706, 31448827, 34481193,
+ 48763910, 35944550, 32108956, 52129960, 31714711, 49319491, 34232454, 34232449, 32393255, 35935212,
+ 34260163, 45056831, 34289981, 42912309, 34858843, 32935281, 44822887, 50037406, 34186024, 35017255,
+ 33234344, 47697221, 51519256, 35761165, 45160098, 31998395, 35844434, 52112088, 44492870, 48622340,
+ 41496405, 34900322, 44728307, 36013102, 41907010, 46485333, 49182835, 44732325, 52052158, 34601332,
+ 34383986, 34217506, 50088371, 50569373, 45001108, 31346510, 51484090, 39855851, 53019499, 39988527,
+ 33570895, 49117694, 35387926, 49569787, 34290042, 35988833, 46602103, 34907298, 50741045, 32906555,
+ 33085697, 38122699, 32186162, 34431068, 47306098, 46487474, 34386414, 35859346, 41067973, 35531435,
+ 40269632, 32039053, 35289034, 39600928, 46205382, 52354759, 43778066, 35454999, 35528831, 44840473,
+ 34229196, 35564207, 46683922, 40636120, 47786975, 35288986, 34211610, 34573847, 31379095, 50130840,
+ 35404717, 34232344, 48240638, 34723023, 42706990, 32287777, 43738899, 44659175, 45384252, 36017164,
+ 38172384, 39461094, 41494142, 48218678, 50889000, 50209460, 43551590, 32422359, 38704933, 34481868,
+ 34665073, 51740194, 42867099, 34527611, 36266254, 35576107, 52551379, 45291583, 35101806, 41824484,
+ 42112695, 34581094, 51715484, 34386798, 48075542, 35544448, 31473958, 31253071, 33506959, 49965967,
+ 42372675, 41739750, 52360281, 44998276, 50281193, 41996175, 41612098, 51963775, 47888512, 37279075,
+ 48669860, 52186869, 45623576, 42384096, 35775437, 31868023, 38508727, 34297555, 44645203, 32937845,
+ 48078561, 43467302, 41597174, 34983814, 45583664, 34162800, 31797906, 37695249, 35564183, 47859708,
+ 35245656, 51065776, 34330968, 35180187, 52814239, 52051352, 37142518, 35467496, 45333609, 50991530,
+ 37831915, 37116674, 35089131, 34967269, 32938594, 31605035, 31783151, 34423904, 50567928, 36149022,
+ 35061024, 36469620, 33516082, 34906407, 51255915, 52134382, 52807211, 33407069, 35555613, 42657667,
+ 49809565, 34330545, 31200413, 36157848, 37003249, 33252100, 38027508, 37900117, 34867062, 50099393,
+ 34728864, 35988588, 35733614, 32035956, 40133141, 34338412, 40253316, 31046770, 36297545, 31235472,
+ 31324720, 32860493, 34100547, 31664663, 31474536, 52188097, 31541690, 45632321, 35261574, 31691424,
+ 31727083, 50693587, 31845509, 32326160, 31961999, 32039487, 32109114, 43730994, 32204360, 50038935,
+ 32392835, 32350378, 32376146, 32428036, 32516204, 32922910, 34272548, 32619043, 48503366, 46881695,
+ 32739591, 32848244, 32818132, 52662727, 32912570, 35699001, 35616443, 33332564, 34323075, 42183121,
+ 33258138, 40494994, 42350602, 50835540, 33559351, 44724945, 33683266, 34344956, 42940827, 36227270,
+ 34192929, 34587323, 34232359, 34425109, 34577316, 34186809, 34363962, 35029762, 42945313, 35306668,
+ 34371532, 34513134, 34408336, 41969609, 35031519, 39603763, 35500426, 34585230, 48822375, 34658043,
+ 34901375, 35017481, 35068375, 46388808, 40967212, 34912487, 35044563, 35000605, 35064451, 35069668,
+ 35208146, 35427304, 35354881, 43671748, 35318323, 35608845, 35528730, 35375610, 35500571, 35736877,
+ 42911191, 35792536, 35863863, 35670781, 35749577, 37671770, 36445194, 35874065, 47974492, 35937061,
+ 35945581, 35994616, 39805791, 37153404, 37684754, 38569876, 45992280, 38412333, 49054992, 50874774,
+ 41607363, 41218344, 47233434, 38307371, 39057429, 40747503, 51282895, 41309443, 39572337, 39572347,
+ 40021439, 41125373, 40230762, 40579728, 48954110, 41993300, 41196092, 44680070, 41928767, 42005904,
+ 41954361, 43111732, 42349768, 45390193, 42494868, 43479000, 44438450, 43103120, 48955189, 43358274,
+ 43778175, 46908305, 44598913, 44492937, 43818809, 48355990, 44661393, 45886010, 44921806, 46274079,
+ 48142969, 45078375, 45261701, 47716116, 46095293, 45622217, 45872749, 46311410, 47960337, 51058576,
+ 46282626, 46415070, 46641844, 46683346, 46868447, 52927302, 48977119, 47583300, 49180784, 48008657, 
+ 51540070, 48319743, 48633610, 48773767, 49664649, 49055259, 49054572, 50718888, 50633179, 50547955, 
+ 51289380, 50366579, 51520328, 50661240, 50737200, 51098625, 51819423, 37218781, 52942988, 52785102]
 val_subjects = []
 
 
-def run(args):
-    
-    print(args)
-
-    data_directories = {'train_path':f'../data/multiview/train','val_path':f'../data/multiview/val','test_path':f'../data/multiview/test'}
-
-
-    
-    #create a list of subjects
-
-    for subject_path in natsorted(os.listdir(data_path)):
-        if subject_path not in args: continue
-        
-        for image_path in os.listdir(f'{data_path}/{subject_path}'):
+def run(subject_path):    
+    #create a list of subjects    
+    for image_path in os.listdir(f'{data_path}/{subject_path}'):
+        try:
+            savepath = data_directories['test_path'] if subject_path in test_subjects else data_directories['val_path'] if subject_path in val_subjects else data_directories['train_path']
             
-            print(f'Processing {data_path}/{subject_path}/{image_path}')
-            try:
-                data = get_dicom_image_data(read_dicom(f'{data_path}/{subject_path}/{image_path}'))
+            if os.path.exists(f'{savepath}/{subject_path}/{image_path}'):
+                continue
+            else:
+                os.makedirs(f'{savepath}/{subject_path}/{image_path}', exist_ok = True)
                 
-                if len(data.shape) != 4: continue # filter out 2D stills
+                data = read_dicom(f'{data_path}/{subject_path}/{image_path}').pixel_array
+                
+                if len(data.shape) != 4: continue # filter out 2D stills 
                                 
                 if sample_subset:
                     frame_indices = random.sample(range(0, data.shape[0]-1), num_frames)
                 else:
-                    frame_indices = range(0, data.shape[0]-1)
+                    frame_ind
+                    ices = range(0, data.shape[0]-1)
                 
                     
                 for frame_index in frame_indices:
-                    try:
-                        original_img = Image.fromarray(data[frame_index,:,:,:])#.convert('RGB')
-                        final_h = int(600 / 800 * final_w)
-                        # final_img = Image.alpha_composite(original_img, mask).convert('L').resize([final_w, final_h], Image.BICUBIC) # For conversion to a grayscale image with borders masked
-                        # final_img = Image.alpha_composite(original_img, mask).convert('RGB').resize([final_w, final_h], Image.BICUBIC) # For conversion to a color image with borders masked
-                        final_img = original_img.resize([final_w, final_h], Image.BICUBIC) # For conversion to a color image without masking
-
-                        savepath = data_directories['test_path'] if subject_path in test_subjects else data_directories['val_path'] if subject_path in val_subjects else data_directories['train_path']
-                        os.makedirs(f'{savepath}/{subject_path}/{image_path}', exist_ok = True)
-                        final_img.save(f'{savepath}/{subject_path}/{image_path}/{str(frame_index).zfill(4)}.png')
-
-                    except Exception as e:
-                        print(f'\033[91mException processing subject {subject_path} dicom {image_path} frame_index {frame_index} \n{e}\033[0m') #Throwing error here
+                    original_img = Image.fromarray(np.uint8(data[frame_index,:,:,:]))
+                    if original_img.mode != 'YCbCr':
+                        original_img = Image.fromarray(cv2.cvtColor(np.array(original_img), cv2.COLOR_YCrCb2BGR))
+                    
+                    final_h = int(600 / 800 * final_w)
+                    final_img = original_img.resize([final_w, final_h], Image.BICUBIC) # For conversion to a color image without masking
+                    final_img.save(f'{savepath}/{subject_path}/{image_path}/{str(frame_index).zfill(4)}.png')
+                    
                 print(f'Saved subject {subject_path} dicom {image_path}')
-            except Exception as e:
-                print(f'\033[91mException processing subject {subject_path} dicom {image_path} \n{e}\033[0m')
-    print('Done!')
+        except Exception as e:
+            print(f'\033[91mException processing subject {subject_path} dicom {image_path} \n{e}\033[0m')
+    
+    
+def main():
+    print(f'opening {data_path}')
+    subject_paths = natsorted(os.listdir(data_path))
+    print(f'found {len(subject_paths)} to process. Starting...')
+    with multiprocessing.Pool(16) as pool:
+        pool.map(run, subject_paths)
+        
+if __name__ == '__main__':
+    sys.exit(main())
+        

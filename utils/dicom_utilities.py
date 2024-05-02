@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from pydicom import dcmread
+import pylibjpeg
 from pydicom.tag import Tag
 from pydicom.pixel_data_handlers import convert_color_space
 
@@ -49,7 +50,8 @@ def deidentify (dicom):
     return dicom
 
 def read_dicom (filename):
-    return deidentify(dcmread(filename))
+    # return deidentify(dcmread(filename))
+    return dcmread(filename)
 
 def get_dicom_image_data (dicom):
     rgb = convert_color_space(dicom.pixel_array, "YBR_FULL", "RGB", per_frame=True)

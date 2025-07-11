@@ -14,3 +14,4 @@ experiments/
 *.xls
 *.xlsx
 **/wandb
+*.pdf

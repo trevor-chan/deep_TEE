@@ -32,13 +32,12 @@ from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-iteration = '00'
+iteration = '01'
 
 # parameters
 path = '../../data/semi-processed/supervised/multiview'
 seed = 42
-image_size = (150, 200)
-batch_size = 96
+batch_size = 64
 
 
 training_dir = f'../../data/semi-processed/supervised/growing_multiview_training'
@@ -69,7 +68,7 @@ class transforms_composed:
     def __init__(self, mode, apply=True, mask=False):
         self.mode = mode
         self.mask=False
-        self.size = (200,150)
+        self.size = (224,224)
         if mask:
             self.mask = True
             mask = Image.open('../assets/dicom-mask.png')
@@ -82,6 +81,7 @@ class transforms_composed:
         self.randomResizedCrop = torchvision.transforms.RandomResizedCrop((self.size[1],self.size[0]), scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333), antialias=True)
         self.randomRotate = torchvision.transforms.RandomRotation(30)
         self.xflip = torchvision.transforms.RandomHorizontalFlip(p=0.5)
+        self.resize = torchvision.transforms.Resize((self.size[1],self.size[0]), antialias=True)
 
     def __call__(self, x):
         tensorconvert=torchvision.transforms.ToTensor()
@@ -97,9 +97,12 @@ class transforms_composed:
                 x = self.randomResizedCrop(x)
                 x = self.randomRotate(x)
                 x=self.xflip(x)
+            else:
+                x = self.resize(x)
             # x = torch.unsqueeze(x[0,:,:],0)
         else:
             x = tensorconvert(x)
+            x = self.resize(x)
             if self.mask:
                 x = x*self.masking_array
             # x = torch.unsqueeze(x[0,:,:],0)
@@ -226,4 +229,4 @@ model = models.efficientnet_v2_l(num_classes=len(class_names), dropout=0.2).to(d
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0002)
 
-model_ft = train_model(model, loss_fn, optimizer, dataloaders, num_epochs=15, experiment_dir = '../../experiments/multiview_classification_00')
+model_ft = train_model(model, loss_fn, optimizer, dataloaders, num_epochs=25, experiment_dir = '../../experiments/multiview_classification_02')

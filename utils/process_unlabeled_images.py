@@ -19,7 +19,7 @@ import multiprocessing
 # parameters
 home_path = os.path.expanduser('~/')
 data_path = f'/data/deep_tee/first_transfer'
-data_directories = {'train_path':f'../data/semi-processed/unsupervised_2/train', 'val_path':f'../data/semi-processed/unsupervised_2/val', 'test_path':f'../data/semi-processed/unsupervised_2/test'}
+data_directories = {'train_path':f'../data/semi-processed/unsupervised/train', 'val_path':f'../data/semi-processed/unsupervised/val', 'test_path':f'../data/semi-processed/unsupervised/test'}
 random.seed(42)
 sample_subset = False
 final_w = 200
@@ -85,7 +85,10 @@ def run(subject_path):
             savepath = data_directories['test_path'] if subject_path in test_subjects else data_directories['val_path'] if subject_path in val_subjects else data_directories['train_path']
             
             if os.path.exists(f'{savepath}/{subject_path}/{image_path}'):
-                continue
+                if os.listdir(f'{savepath}/{subject_path}/{image_path}'): 
+                    continue
+                
+                
             else:
                 os.makedirs(f'{savepath}/{subject_path}/{image_path}', exist_ok = True)
                 
@@ -96,8 +99,7 @@ def run(subject_path):
                 if sample_subset:
                     frame_indices = random.sample(range(0, data.shape[0]-1), num_frames)
                 else:
-                    frame_ind
-                    ices = range(0, data.shape[0]-1)
+                    frame_indices = range(0, data.shape[0]-1)
                 
                     
                 for frame_index in frame_indices:

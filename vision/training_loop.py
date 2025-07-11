@@ -80,8 +80,7 @@ def simple_training_loop(
     while True:
         
         # Accumulate gradients.
-        optimizer.zero_grad(set_to_none=True)
-        
+        optimizer.zero_grad(set_to_none=True)        
         parcel = next(dataset_iterator)
         data = parcel['data']
         label = parcel['label']
@@ -147,9 +146,9 @@ def simple_training_loop(
         json.dump(training_stats, open(os.path.join(run_dir, 'log.json'), 'wt'))
         running_loss = []
         if validation_dataset:
-            print(f"tick {cur_tick}, loss {training_stats['loss'][-1]:.4f}, std {training_stats['std'][-1]:.4f}, valloss {training_stats['valloss'][-1]:.4f}, valstd {training_stats['valstd'][-1]:.4f}, time {training_stats['tick_runtime'][-1]:.2f} sec")
+            print(f"tick {cur_tick}, loss {training_stats['loss'][-1]:.6f}, std {training_stats['std'][-1]:.6f}, valloss {training_stats['valloss'][-1]:.6f}, valstd {training_stats['valstd'][-1]:.6f}, time {training_stats['tick_runtime'][-1]:.2f} sec")
         else:
-            print(f"tick {cur_tick}, loss {training_stats['loss'][-1]:.4f}, std {training_stats['std'][-1]:.4f}, time {training_stats['tick_runtime'][-1]:.2f} sec")
+            print(f"tick {cur_tick}, loss {training_stats['loss'][-1]:.6f}, std {training_stats['std'][-1]:.6f}, time {training_stats['tick_runtime'][-1]:.2f} sec")
 
         # Update state.
         tick_start_nimg = cur_nimg

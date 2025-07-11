@@ -95,7 +95,7 @@ def fetch_vit_model(
             stochastic_depth_prob = stochastic_depth_prob,
             rel_pos_embed = rel_pos_embed,
             proj_after_attn = proj_after_attn,
-            num_classes = 1,
+            num_classes = num_classes,
         )
     
     return model

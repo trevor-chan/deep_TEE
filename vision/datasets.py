@@ -11,49 +11,71 @@ from torchvision.transforms import v2
 def collate_fn(batch):
   return {
       'data': torch.stack([x['data'] for x in batch], dim=0),
-      'label': torch.tensor([x['label'] for x in batch]),
+      'label': torch.stack([x['label'] for x in batch], dim=0),
       'acc': [x['acc'] for x in batch],
 }
 
 class VideoDataset(torch.utils.data.Dataset):
 
-    def __init__(self, clip_paths, labels_df, transform=None, duration=32, skip=1):
+    def __init__(self, clip_paths, labels_df, features, time_df=None, transform=None, duration=32, skip=1):
         """
         Arguments:
-            csv_file (string): Path to the csv file with annotations.
+            csv_file (string): Path to the csv file with annotations. - format should include a column for accession number, columns for n features, and a prepost column
             root_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
+            transform (callable, optional): Optional transform to be applied on a sample.
+            features (list): List of strings containing the names of features to be used for training ['LVEF', 'RVSF', ...]
         """
         self.labels_df = labels_df
         self.transform = transform
         self.clip_paths = clip_paths
+        self.features = features
         self.duration = duration
         self.skip = skip
+        self.time_df = time_df
 
     def __len__(self):
         return len(self.clip_paths)
 
-    def __getitem__(self, idx):  
+    def __getitem__(self, idx):
         acc_num = os.path.basename(os.path.split(self.clip_paths[idx])[0])
-        try:
-            self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)]['EF_pre'].item()
-        except:
-            print(idx)
-            print(acc_num)
-            print(self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)])
-        label = self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)]['EF_pre'].item()
+        dcm_num = os.path.basename(os.path.split(self.clip_paths[idx])[1])
+        if self.time_df is not None:
+            prepost = self.time_df.loc[(self.time_df['ACC_NUM']==acc_num) & (self.time_df['DCM_NUM']==dcm_num)]['prepost_pred']
+            if len(prepost) == 1:
+                prepost = int(prepost.item())
+            else:
+                prepost = 0
+            if prepost == -1: # for now, set inter to pre - probably change later
+                prepost = 0
+        else:
+            prepost = 0
         
-        label = label / 100
         
+        # if prepost == 0:
+        #     label = self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)]['EF_pre'].item()
+        # elif prepost == 1:
+        #     label = self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)]['EF_post'].item()
+        # else:
+        #     label = self.labels_df.loc[self.labels_df['ACC_NUM']==int(acc_num)]['EF_pre'].item() # for now, set inter to pre - probably change later
+        # label = label / 100
+        labels = self.labels_df.loc[(self.labels_df['ACC_NUM'] == int(acc_num)) & (self.labels_df['prepost'] == prepost)][self.features].values
+        # labels = []
+        # for feature in self.features:
+        #     try:
+        #         labels.append(self.labels_df.loc[(self.labels_df['ACC_NUM']==int(acc_num)) & (self.labels_df['prepost'] == prepost)][feature].item())
+        #     except:
+        #         print(f"trying to get {feature, acc_num, prepost}")
+        #         print(f"fetch without prepost: {self.labels_df.loc[(self.labels_df['ACC_NUM'] == int(acc_num))][feature]}")
+        #         print(f"fetch with prepost: {self.labels_df.loc[(self.labels_df['ACC_NUM'] == int(acc_num)) & (self.labels_df['prepost'] == prepost)][feature]}")
+        labels = torch.tensor(labels)
         data = self.__read_images(self.clip_paths[idx], self.duration, self.skip)
         
         if self.transform:
             data = self.transform(data)
-            
+        
         data = data.permute(1,0,2,3) # reshape to (C,T,H,W)
-            
-        return {'data':data, 'label':label, 'acc':acc_num}
+        
+        return {'data':data, 'label':labels, 'acc':acc_num, 'prepost':prepost}
     
     
     def __read_images(self, path, duration=32, skip=1):
